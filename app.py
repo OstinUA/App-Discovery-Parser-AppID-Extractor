@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from requests.exceptions import RequestException
 from parser_logic import extract_google_play_ids, extract_app_store_ids, get_page_title
 from translations import LOCALIZATION
 
@@ -76,8 +77,8 @@ if parse_btn:
                 r = requests.get(src["content"], timeout=10, headers={"User-Agent": "Mozilla/5.0"})
                 if r.status_code == 200:
                     combined_html += r.text
-            except:
-                st.error(f"{t['url_error']}: {src['content']}")
+            except RequestException as e:
+                st.error(f"{t['url_error']}: {src['content']} - {e}")
 
     gp = extract_google_play_ids(combined_html)
     as_ids = extract_app_store_ids(combined_html)
