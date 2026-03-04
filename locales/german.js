@@ -1,0 +1,21 @@
+module.exports = {
+  title: "App Discovery Parser",
+  sidebar_info: "Anleitung",
+  instr_text: "1. Öffnen Sie die Entwicklernseite.\n2. Scrollen Sie nach unten.\n3. Kopieren Sie das HTML (Strg+U).\n4. Fügen Sie bei Bedarf mehrere Quellen hinzu.",
+  input_label: "Quellinhalt (HTML)",
+  url_label: "URL eingeben",
+  mode_selector: "Modus",
+  mode_html: "HTML einfügen",
+  mode_url: "URL-Link",
+  btn_parse: "Alle Daten analysieren",
+  btn_clear: "Alles löschen",
+  btn_add: "Quelle hinzufügen",
+  btn_remove: "Entfernen",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Gefunden",
+  download: ".txt herunterladen",
+  no_ids: "Keine IDs gefunden",
+  url_error: "Fehler beim Abrufen der URL",
+  source_name: "Quelle"
+};

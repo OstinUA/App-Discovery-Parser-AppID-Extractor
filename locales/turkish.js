@@ -1,0 +1,21 @@
+module.exports = {
+  title: "App Discovery Ayrıştırıcı",
+  sidebar_info: "Talimatlar",
+  instr_text: "1. Geliştirici sayfasını açın.\n2. En alta kaydırın.\n3. HTML'i kopyalayın (Ctrl+U).\n4. Gerekirse birden fazla kaynak ekleyin.",
+  input_label: "Kaynak İçeriği (HTML)",
+  url_label: "URL girin",
+  mode_selector: "Mod",
+  mode_html: "HTML Yapıştır",
+  mode_url: "URL Bağlantısı",
+  btn_parse: "Tüm Verileri Ayrıştır",
+  btn_clear: "Tümünü Temizle",
+  btn_add: "Kaynak Ekle",
+  btn_remove: "Kaldır",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Bulundu",
+  download: ".txt İndir",
+  no_ids: "ID bulunamadı",
+  url_error: "URL alınırken hata",
+  source_name: "Kaynak"
+};

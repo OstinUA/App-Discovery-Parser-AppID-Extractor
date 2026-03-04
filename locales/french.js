@@ -1,0 +1,21 @@
+module.exports = {
+  title: "Analyseur App Discovery",
+  sidebar_info: "Instructions",
+  instr_text: "1. Ouvrez la page.\n2. Faites défiler.\n3. Copiez le HTML.\n4. Ajoutez des sources si besoin.",
+  input_label: "Contenu (HTML)",
+  url_label: "Entrez l'URL",
+  mode_selector: "Mode",
+  mode_html: "Coller HTML",
+  mode_url: "Lien URL",
+  btn_parse: "Analyser tout",
+  btn_clear: "Effacer tout",
+  btn_add: "Ajouter source",
+  btn_remove: "Supprimer",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Trouvé",
+  download: "Télécharger .txt",
+  no_ids: "Aucun ID trouvé",
+  url_error: "Erreur URL",
+  source_name: "Source"
+};

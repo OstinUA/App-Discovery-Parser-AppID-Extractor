@@ -1,0 +1,21 @@
+module.exports = {
+  title: "Parser App Discovery",
+  sidebar_info: "Pokyny",
+  instr_text: "1. Otevřete stránku vývojáře.\n2. Sjeďte dolů.\n3. Zkopírujte HTML (Ctrl+U).\n4. V případě potřeby přidejte více zdrojů.",
+  input_label: "Zdrojový obsah (HTML)",
+  url_label: "Zadejte URL",
+  mode_selector: "Režim",
+  mode_html: "Vložit HTML",
+  mode_url: "URL odkaz",
+  btn_parse: "Analyzovat všechna data",
+  btn_clear: "Vymazat vše",
+  btn_add: "Přidat zdroj",
+  btn_remove: "Odstranit",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Nalezeno",
+  download: "Stáhnout .txt",
+  no_ids: "Nebyla nalezena žádná ID",
+  url_error: "Chyba při načítání URL",
+  source_name: "Zdroj"
+};

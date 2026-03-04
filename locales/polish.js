@@ -1,0 +1,21 @@
+module.exports = {
+  title: "Parser App Discovery",
+  sidebar_info: "Instrukcje",
+  instr_text: "1. Otwórz stronę deweloperską.\n2. Przewiń na dół.\n3. Skopiuj HTML (Ctrl+U).\n4. W razie potrzeby dodaj wiele źródeł.",
+  input_label: "Treść źródłowa (HTML)",
+  url_label: "Wprowadź URL",
+  mode_selector: "Tryb",
+  mode_html: "Wklej HTML",
+  mode_url: "Link URL",
+  btn_parse: "Analizuj wszystkie dane",
+  btn_clear: "Wyczyść wszystko",
+  btn_add: "Dodaj źródło",
+  btn_remove: "Usuń",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Znaleziono",
+  download: "Pobierz .txt",
+  no_ids: "Nie znaleziono ID",
+  url_error: "Błąd pobierania URL",
+  source_name: "Źródło"
+};

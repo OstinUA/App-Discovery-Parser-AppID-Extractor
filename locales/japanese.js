@@ -1,0 +1,21 @@
+module.exports = {
+  title: "App Discovery パーサー",
+  sidebar_info: "使い方",
+  instr_text: "1. 開発者ページを開きます。\n2. 一番下までスクロールします。\n3. HTML をコピーします（Ctrl+U）。\n4. 必要に応じて複数のソースを追加します。",
+  input_label: "ソース内容 (HTML)",
+  url_label: "URL を入力",
+  mode_selector: "モード",
+  mode_html: "HTML を貼り付け",
+  mode_url: "URL リンク",
+  btn_parse: "すべて解析",
+  btn_clear: "すべてクリア",
+  btn_add: "ソースを追加",
+  btn_remove: "削除",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "件見つかりました",
+  download: ".txt をダウンロード",
+  no_ids: "ID が見つかりません",
+  url_error: "URL の取得エラー",
+  source_name: "ソース"
+};

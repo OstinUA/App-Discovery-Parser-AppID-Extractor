@@ -1,0 +1,21 @@
+module.exports = {
+  title: "App Discovery Parser",
+  sidebar_info: "Instructions",
+  instr_text: "1. Open the developer page.\n2. Scroll to the bottom.\n3. Copy HTML (Ctrl+U).\n4. Add multiple inputs if needed.",
+  input_label: "Source Content (HTML)",
+  url_label: "Enter URL",
+  mode_selector: "Input Mode",
+  mode_html: "HTML Paste",
+  mode_url: "URL Link",
+  btn_parse: "Parse All Data",
+  btn_clear: "Clear All",
+  btn_add: "Add Source",
+  btn_remove: "Remove",
+  gp_header: "Google Play Bundle IDs",
+  as_header: "App Store App IDs",
+  found: "Found",
+  download: "Download .txt",
+  no_ids: "No IDs found",
+  url_error: "Error fetching URL",
+  source_name: "Source"
+};
