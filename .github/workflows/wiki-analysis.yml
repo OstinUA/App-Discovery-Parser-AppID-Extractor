@@ -1,0 +1,140 @@
+name: AI Wiki Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      page_title:
+        description: 'Wiki page title (e.g. "Project-Overview")'
+        required: true
+        default: 'AI-Analysis'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install requests
+
+      - name: Collect repo files
+        run: |
+          python - <<'EOF'
+          import os, json
+
+          INCLUDE_EXT = {'.py', '.js', '.ts', '.yml', '.yaml', '.md', '.json', '.sh'}
+          EXCLUDE_DIRS = {'.git', 'node_modules', 'venv', '__pycache__', '.github'}
+
+          files = {}
+          for root, dirs, filenames in os.walk('.'):
+              dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+              for fname in filenames:
+                  ext = os.path.splitext(fname)[1]
+                  if ext not in INCLUDE_EXT:
+                      continue
+                  path = os.path.join(root, fname).lstrip('./')
+                  try:
+                      with open(os.path.join(root, fname), 'r', encoding='utf-8', errors='ignore') as f:
+                          content = f.read(3000)
+                      files[path] = content
+                  except:
+                      pass
+
+          with open('/tmp/repo_files.json', 'w') as f:
+              json.dump(files, f)
+
+          print(f"Collected {len(files)} files")
+          EOF
+
+      - name: Generate wiki page via Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PAGE_TITLE: ${{ github.event.inputs.page_title }}
+        run: |
+          python - <<'EOF'
+          import os, json, requests, time
+
+          with open('/tmp/repo_files.json') as f:
+              files = json.load(f)
+
+          file_dump = ""
+          for path, content in files.items():
+              file_dump += f"\n\n### {path}\n```\n{content}\n```"
+              if len(file_dump) > 80000:
+                  file_dump += "\n\n[truncated...]"
+                  break
+
+          page_title = os.environ['PAGE_TITLE']
+
+          prompt = f"""Analyze this repository and write a comprehensive Wiki page titled "{page_title}".
+
+          Include:
+          - ## Overview
+          - ## Architecture
+          - ## Setup & Configuration
+          - ## How It Works
+          - ## Key Components
+          - ## Notes
+
+          Write in English. Use proper markdown.
+
+          Repository contents:
+          {file_dump}
+          """
+
+          headers = {"Content-Type": "application/json"}
+          payload = {"contents": [{"parts": [{"text": prompt}]}]}
+          models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+
+          result = None
+          for model in models:
+              url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={os.environ['GEMINI_API_KEY']}"
+              for attempt in range(3):
+                  try:
+                      resp = requests.post(url, json=payload, headers=headers, timeout=120)
+                      if resp.status_code == 429:
+                          time.sleep(15 * (2 ** attempt))
+                          continue
+                      resp.raise_for_status()
+                      result = resp.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                      break
+                  except Exception as e:
+                      print(f"[{model}] attempt {attempt+1} failed: {e}")
+                      time.sleep(10)
+              if result:
+                  break
+
+          if not result:
+              exit(1)
+
+          with open('/tmp/wiki_page.md', 'w') as f:
+              f.write(result)
+          EOF
+
+      - name: Push to Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGE_TITLE: ${{ github.event.inputs.page_title }}
+          REPO: ${{ github.repository }}
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git" /tmp/wiki
+
+          cp /tmp/wiki_page.md "/tmp/wiki/${PAGE_TITLE}.md"
+
+          cd /tmp/wiki
+          git add .
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "docs: AI analysis → ${PAGE_TITLE}"
+          git push
+          echo "Done!"
