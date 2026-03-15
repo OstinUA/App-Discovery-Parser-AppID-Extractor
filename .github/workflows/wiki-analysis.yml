@@ -3,10 +3,19 @@ name: AI Wiki Analysis
 on:
   workflow_dispatch:
     inputs:
-      page_title:
-        description: 'Wiki page title (e.g. "Project-Overview")'
+      topic:
+        description: 'Topic to write about'
         required: true
-        default: 'AI-Analysis'
+        type: choice
+        options:
+          - Architecture
+          - Setup-and-Configuration
+          - How-It-Works
+          - Security
+          - Contributing
+          - API-Reference
+          - Troubleshooting
+          - Changelog
 
 jobs:
   analyze:
@@ -50,14 +59,13 @@ jobs:
 
           with open('/tmp/repo_files.json', 'w') as f:
               json.dump(files, f)
-
           print(f"Collected {len(files)} files")
           EOF
 
       - name: Generate wiki page via Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PAGE_TITLE: ${{ github.event.inputs.page_title }}
+          TOPIC: ${{ github.event.inputs.topic }}
         run: |
           python - <<'EOF'
           import os, json, requests, time
@@ -72,19 +80,31 @@ jobs:
                   file_dump += "\n\n[truncated...]"
                   break
 
-          page_title = os.environ['PAGE_TITLE']
+          topic = os.environ['TOPIC']
 
-          prompt = f"""Analyze this repository and write a comprehensive Wiki page titled "{page_title}".
+          topic_prompts = {
+              "Architecture": "Describe the project architecture: key files, how they interact, data flow, design decisions. No fluff.",
+              "Setup-and-Configuration": "Describe how to set up the project: prerequisites, installation steps, all env variables and secrets with explanations.",
+              "How-It-Works": "Explain step-by-step how the system works at runtime: triggers, logic flow, API calls, outputs.",
+              "Security": "Analyze security aspects: what secrets are used, how auth works, potential risks, recommendations.",
+              "Contributing": "Write a contributing guide: how to run locally, code style, PR process, testing.",
+              "API-Reference": "Document all external APIs used: endpoints, payloads, response formats, error handling.",
+              "Troubleshooting": "List common problems and their solutions based on the codebase logic.",
+              "Changelog": "Summarize what this project does and list key features as a changelog-style entry.",
+          }
 
-          Include:
-          - ## Overview
-          - ## Architecture
-          - ## Setup & Configuration
-          - ## How It Works
-          - ## Key Components
-          - ## Notes
+          instruction = topic_prompts.get(topic, "Write a focused wiki page about this topic.")
 
-          Write in English. Use proper markdown.
+          prompt = f"""Write a GitHub Wiki page about "{topic}" for this repository.
+
+          Instructions: {instruction}
+
+          Rules:
+          - Max 400 words
+          - Use markdown headers (##, ###)
+          - Be specific to THIS codebase, not generic
+          - No intro like "This page covers..." — start directly with content
+          - Do not repeat the page title as H1
 
           Repository contents:
           {file_dump}
@@ -119,22 +139,44 @@ jobs:
               f.write(result)
           EOF
 
-      - name: Push to Wiki
+      - name: Push page and update Table of Contents
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PAGE_TITLE: ${{ github.event.inputs.page_title }}
+          TOPIC: ${{ github.event.inputs.topic }}
           REPO: ${{ github.repository }}
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
 
           git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git" /tmp/wiki
-
-          cp /tmp/wiki_page.md "/tmp/wiki/${PAGE_TITLE}.md"
-
           cd /tmp/wiki
+
+          cp /tmp/wiki_page.md "${TOPIC}.md"
+
+          python3 - <<'PYEOF'
+          import os
+
+          wiki_dir = "/tmp/wiki"
+          toc_file = os.path.join(wiki_dir, "Table-of-Contents.md")
+
+          pages = sorted([
+              f[:-3] for f in os.listdir(wiki_dir)
+              if f.endswith(".md") and f != "Table-of-Contents.md"
+          ])
+
+          lines = ["# Table of Contents\n"]
+          lines.append("_Auto-generated index of all wiki pages._\n")
+          lines.append("")
+
+          for page in pages:
+              display = page.replace("-", " ")
+              lines.append(f"- [{display}]({page})")
+
+          with open(toc_file, "w") as f:
+              f.write("\n".join(lines))
+          PYEOF
+
           git add .
-          git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "docs: AI analysis → ${PAGE_TITLE}"
+          git diff --cached --quiet && exit 0
+          git commit -m "wiki: add ${TOPIC} + update Table of Contents"
           git push
-          echo "Done!"
