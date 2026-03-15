@@ -1,21 +1,7 @@
-name: AI Wiki Analysis
+name: AI Wiki Analysis group
 
 on:
   workflow_dispatch:
-    inputs:
-      topic:
-        description: 'Topic to write about'
-        required: true
-        type: choice
-        options:
-          - Architecture
-          - Setup-and-Configuration
-          - How-It-Works
-          - Security
-          - Contributing
-          - API-Reference
-          - Troubleshooting
-          - Changelog
 
 jobs:
   analyze:
@@ -62,10 +48,9 @@ jobs:
           print(f"Collected {len(files)} files")
           EOF
 
-      - name: Generate wiki page via Gemini
+      - name: Generate all wiki pages via Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TOPIC: ${{ github.event.inputs.topic }}
         run: |
           python - <<'EOF'
           import os, json, requests, time
@@ -80,22 +65,44 @@ jobs:
                   file_dump += "\n\n[truncated...]"
                   break
 
-          topic = os.environ['TOPIC']
-
-          topic_prompts = {
-              "Architecture": "Describe the project architecture: key files, how they interact, data flow, design decisions. No fluff.",
-              "Setup-and-Configuration": "Describe how to set up the project: prerequisites, installation steps, all env variables and secrets with explanations.",
-              "How-It-Works": "Explain step-by-step how the system works at runtime: triggers, logic flow, API calls, outputs.",
-              "Security": "Analyze security aspects: what secrets are used, how auth works, potential risks, recommendations.",
-              "Contributing": "Write a contributing guide: how to run locally, code style, PR process, testing.",
-              "API-Reference": "Document all external APIs used: endpoints, payloads, response formats, error handling.",
-              "Troubleshooting": "List common problems and their solutions based on the codebase logic.",
-              "Changelog": "Summarize what this project does and list key features as a changelog-style entry.",
+          topics = {
+              "Architecture":         "Describe the project architecture: key files, how they interact, data flow, design decisions.",
+              "Setup-and-Configuration": "Prerequisites, installation steps, all env variables and secrets with explanations.",
+              "How-It-Works":         "Step-by-step runtime flow: triggers, logic, API calls, outputs.",
+              "Security":             "What secrets are used, how auth works, potential risks, recommendations.",
+              "Contributing":         "How to run locally, code style, PR process, testing.",
+              "API-Reference":        "All external APIs used: endpoints, payloads, response formats, error handling.",
+              "Troubleshooting":      "Common problems and solutions based on the codebase logic.",
+              "Changelog":            "Key features and changes as a changelog-style entry.",
+              "Environment-Variables":"Full reference of every env var: name, purpose, example value, required or optional.",
+              "GitHub-Actions-Pipeline": "How the CI/CD pipeline works: triggers, jobs, steps, secrets injection, permissions.",
           }
 
-          instruction = topic_prompts.get(topic, "Write a focused wiki page about this topic.")
+          headers = {"Content-Type": "application/json"}
+          models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
-          prompt = f"""Write a GitHub Wiki page about "{topic}" for this repository.
+          def call_gemini(prompt):
+              payload = {"contents": [{"parts": [{"text": prompt}]}]}
+              for model in models:
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={os.environ['GEMINI_API_KEY']}"
+                  for attempt in range(3):
+                      try:
+                          resp = requests.post(url, json=payload, headers=headers, timeout=120)
+                          if resp.status_code == 429:
+                              time.sleep(15 * (2 ** attempt))
+                              continue
+                          resp.raise_for_status()
+                          return resp.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                      except Exception as e:
+                          print(f"[{model}] attempt {attempt+1} failed: {e}")
+                          time.sleep(10)
+              return None
+
+          os.makedirs('/tmp/wiki_pages', exist_ok=True)
+
+          for topic, instruction in topics.items():
+              print(f"Generating: {topic}...")
+              prompt = f"""Write a GitHub Wiki page about "{topic}" for this repository.
 
           Instructions: {instruction}
 
@@ -109,74 +116,32 @@ jobs:
           Repository contents:
           {file_dump}
           """
-
-          headers = {"Content-Type": "application/json"}
-          payload = {"contents": [{"parts": [{"text": prompt}]}]}
-          models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-
-          result = None
-          for model in models:
-              url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={os.environ['GEMINI_API_KEY']}"
-              for attempt in range(3):
-                  try:
-                      resp = requests.post(url, json=payload, headers=headers, timeout=120)
-                      if resp.status_code == 429:
-                          time.sleep(15 * (2 ** attempt))
-                          continue
-                      resp.raise_for_status()
-                      result = resp.json()['candidates'][0]['content']['parts'][0]['text'].strip()
-                      break
-                  except Exception as e:
-                      print(f"[{model}] attempt {attempt+1} failed: {e}")
-                      time.sleep(10)
+              result = call_gemini(prompt)
               if result:
-                  break
+                  with open(f'/tmp/wiki_pages/{topic}.md', 'w') as f:
+                      f.write(result)
+                  print(f"Done: {topic}")
+              else:
+                  print(f"Failed: {topic}")
+              time.sleep(3)
 
-          if not result:
-              exit(1)
-
-          with open('/tmp/wiki_page.md', 'w') as f:
-              f.write(result)
+          print("All pages generated")
           EOF
 
-      - name: Push page and update Table of Contents
+      - name: Push all pages to Wiki
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TOPIC: ${{ github.event.inputs.topic }}
           REPO: ${{ github.repository }}
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
 
           git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git" /tmp/wiki
+
+          cp /tmp/wiki_pages/*.md /tmp/wiki/
+
           cd /tmp/wiki
-
-          cp /tmp/wiki_page.md "${TOPIC}.md"
-
-          python3 - <<'PYEOF'
-          import os
-
-          wiki_dir = "/tmp/wiki"
-          toc_file = os.path.join(wiki_dir, "Table-of-Contents.md")
-
-          pages = sorted([
-              f[:-3] for f in os.listdir(wiki_dir)
-              if f.endswith(".md") and f != "Table-of-Contents.md"
-          ])
-
-          lines = ["# Table of Contents\n"]
-          lines.append("_Auto-generated index of all wiki pages._\n")
-          lines.append("")
-
-          for page in pages:
-              display = page.replace("-", " ")
-              lines.append(f"- [{display}]({page})")
-
-          with open(toc_file, "w") as f:
-              f.write("\n".join(lines))
-          PYEOF
-
           git add .
           git diff --cached --quiet && exit 0
-          git commit -m "wiki: add ${TOPIC} + update Table of Contents"
+          git commit -m "wiki: bulk generate 10 pages"
           git push
