@@ -1,13 +1,20 @@
 import streamlit as st
 import requests
 from requests.exceptions import RequestException
-from parser_logic import extract_google_play_ids, extract_app_store_ids, get_page_title
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from parser_logic import extract_all_ids, get_page_title
 from translations import LOCALIZATION
 
 st.set_page_config(page_title="App Discovery Parser", layout="wide")
 
-with open("assets/style.css") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+@st.cache_data
+def _load_css() -> str:
+    with open("assets/style.css") as f:
+        return f.read()
+
+
+st.markdown(f"<style>{_load_css()}</style>", unsafe_allow_html=True)
 
 if 'sources' not in st.session_state:
     st.session_state.sources = [{"type": "HTML", "content": ""}]
@@ -23,8 +30,7 @@ st.markdown(f'<div class="main-header">{t["title"]}</div>', unsafe_allow_html=Tr
 
 for i in range(len(st.session_state.sources)):
     source_data = st.session_state.sources[i]
-    
-    # Определение заголовка окна
+
     display_name = f"{t['source_name']} #{i+1}"
     if source_data["type"] == "URL" and source_data["content"]:
         display_name = source_data["content"]
@@ -35,7 +41,7 @@ for i in range(len(st.session_state.sources)):
 
     with st.expander(display_name, expanded=(i == len(st.session_state.sources) - 1)):
         col_m, col_v, col_del = st.columns([1, 4, 0.5])
-        
+
         with col_m:
             m_options = [t["mode_html"], t["mode_url"]]
             curr_idx = 0 if source_data["type"] == "HTML" else 1
@@ -47,7 +53,7 @@ for i in range(len(st.session_state.sources)):
                 st.session_state.sources[i]["content"] = st.text_area(t["input_label"], value=source_data["content"], key=f"t_{i}", height=100, label_visibility="collapsed")
             else:
                 st.session_state.sources[i]["content"] = st.text_input(t["url_label"], value=source_data["content"], key=f"u_{i}", label_visibility="collapsed")
-        
+
         with col_del:
             if st.button("❌", key=f"del_{i}"):
                 st.session_state.sources.pop(i)
@@ -67,21 +73,40 @@ with cp2:
         st.session_state.sources = [{"type": "HTML", "content": ""}]
         st.rerun()
 
-if parse_btn:
-    combined_html = ""
-    for src in st.session_state.sources:
-        if src["type"] == "HTML":
-            combined_html += src["content"]
-        elif src["type"] == "URL" and src["content"]:
-            try:
-                r = requests.get(src["content"], timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                if r.status_code == 200:
-                    combined_html += r.text
-            except RequestException as e:
-                st.error(f"{t['url_error']}: {src['content']} - {e}")
 
-    gp = extract_google_play_ids(combined_html)
-    as_ids = extract_app_store_ids(combined_html)
+def _fetch_url(url: str) -> tuple[str, str | None, str | None]:
+    try:
+        r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        return url, (r.text if r.status_code == 200 else None), None
+    except RequestException as e:
+        return url, None, str(e)
+
+
+if parse_btn:
+    # Accumulate HTML in a list; join once at the end — O(S) vs O(S²) for repeated +=
+    html_parts: list[str] = []
+    url_sources: list[str] = []
+
+    for src in st.session_state.sources:
+        if src["type"] == "HTML" and src["content"]:
+            html_parts.append(src["content"])
+        elif src["type"] == "URL" and src["content"]:
+            url_sources.append(src["content"])
+
+    # Fetch all URLs in parallel; wall-clock time = max(individual latencies) instead of sum
+    if url_sources:
+        with ThreadPoolExecutor(max_workers=min(len(url_sources), 8)) as executor:
+            futures = {executor.submit(_fetch_url, url): url for url in url_sources}
+            for future in as_completed(futures):
+                url, content, err = future.result()
+                if content is not None:
+                    html_parts.append(content)
+                else:
+                    st.error(f"{t['url_error']}: {url}{' - ' + err if err else ''}")
+
+    combined_html = "".join(html_parts)
+    # Single call extracts both ID types, avoiding passing the large string twice
+    gp, as_ids = extract_all_ids(combined_html)
 
     r1, r2 = st.columns(2)
     with r1:
